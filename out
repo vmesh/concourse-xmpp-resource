@@ -1,0 +1,103 @@
+#!/bin/sh
+
+set -e
+
+exec 3>&1
+exec 1>&2
+
+PAYLOAD=$(mktemp /tmp/resource-put.XXXXXX)
+
+cat >"$PAYLOAD" <&0
+
+
+
+debug=$(jq -r '.source.debug // false' <"$PAYLOAD")
+[ "$debug" = "true" ] && set -x # TODO hide plaintext passwords
+
+recipients="$(jq -r '.source.recipients | .[]? // empty' <"$PAYLOAD")"
+rooms="$(jq -r '.source.rooms | .[]? // empty' <"$PAYLOAD")"
+
+username="$(jq -r '.source.username // empty' <"$PAYLOAD")"
+password="$(jq -r '.source.password // empty' <"$PAYLOAD")"
+server="$(jq -r '.source.server // empty' <"$PAYLOAD")"
+
+room_nick="$(jq -r '.source.room_nick // "concourse"' <"$PAYLOAD")"
+skip_ssl_verification="$(jq -r '.source.skip_ssl_verification // "false"' <"$PAYLOAD")"
+disable_ssl="$(jq -r '.source.disable_ssl // "false"' <"$PAYLOAD")"
+ca_cert=$(jq -r '.source.ca_cert // empty' <"$PAYLOAD")
+
+text="$(jq '.params.text // empty' <"$PAYLOAD")"
+text_file="$(jq -r '.params.text_file // empty' <"$PAYLOAD")"
+
+
+
+if [ -z "$rooms" ] && [ -z "$recipients" ]; then
+    echo "Missing required option: \"rooms\" or \"recipients\""
+    exit 1
+fi
+
+: ${username:?Missing required option: \"username\"}
+: ${password:?Missing required option: \"password\"}
+: ${server:?Missing required option: \"server\"}
+
+if [ -z "$text" ] && [ -z "$text_file" ]; then
+    echo "Missing required parameter: \"text\" or \"text_file\""
+    exit 1
+fi
+
+if [ -n "$text" ] && [ -n "$text_file" ]; then
+    echo "Only one parameter must be specified: \"text\" or \"text_file\""
+    exit 1
+fi
+
+
+SENDXMPP_OPTS=""
+
+if [ -n "$ca_cert" ]; then
+    cert_dir=$(mktemp -d /tmp/resource-cert.XXXXXX)
+    echo "$ca_cert" >"$cert_dir/$server.crt"
+    SENDXMPP_OPTS="$SENDXMPP_OPTS --tls-ca-path $cert_dir/$server.crt"
+else
+    # TODO See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=854210
+    SENDXMPP_OPTS="$SENDXMPP_OPTS --tls-ca-path /etc/ssl/certs"
+fi
+
+if [ "$skip_ssl_verification" = "true" ]; then
+    SENDXMPP_OPTS="$SENDXMPP_OPTS --no-tls-verify"
+fi
+
+if [ "$disable_ssl" = "false" ]; then
+    SENDXMPP_OPTS="$SENDXMPP_OPTS --tls"
+fi
+
+if [ "$debug" = "true" ]; then
+    SENDXMPP_OPTS="$SENDXMPP_OPTS --verbose"
+fi
+
+if [ -n "$text_file" ] && [ ! -f "$text_file" ]; then
+    echo "$text_file file not found"
+    exit 1
+elif [ -n "$text_file" ]; then
+    text="$(cat "$text_file")"
+fi
+
+
+text="$(eval printf "%b" $text)"
+: ${text:-No notification provided}
+
+msg_file=$(mktemp /tmp/resource-msg.XXXXXX)
+echo "$text" >"$msg_file"
+
+
+if [ -n "$recipients" ]; then
+    sendxmpp $SENDXMPP_OPTS -j "$server" -u "$username" -p "$password" \
+        -m "$msg_file" $recipients
+fi
+
+if [ -n "$rooms" ]; then
+    sendxmpp $SENDXMPP_OPTS -j "$server" -u "$username" -p "$password" \
+        -m "$msg_file" --resource "$room_nick" --chatroom $rooms
+fi
+
+
+jq -n "{ version: { timestamp: \"$(date +%s)\" } }" >&3

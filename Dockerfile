@@ -1,6 +1,7 @@
 FROM debian:9
 
-RUN apt-get update && apt-get install -y --no-install-recommends jq sendxmpp \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        jq sendxmpp ca-certificates \
         && rm -rf /var/lib/apt/lists/*
 
 COPY check /opt/resource/check

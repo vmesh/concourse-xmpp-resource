@@ -12,22 +12,25 @@ cat >"$PAYLOAD" <&0
 
 
 debug=$(jq -r '.source.debug // false' <"$PAYLOAD")
-[ "$debug" = "true" ] && set -x # TODO hide plaintext passwords
+[ "$debug" = "true" ] && set -x
 
 recipients="$(jq -r '.source.recipients | .[]? // empty' <"$PAYLOAD")"
 rooms="$(jq -r '.source.rooms | .[]? // empty' <"$PAYLOAD")"
 
+server="$(jq -r '.source.server // empty' <"$PAYLOAD")"
+[ "$debug" = "true" ] && set +x
 username="$(jq -r '.source.username // empty' <"$PAYLOAD")"
 password="$(jq -r '.source.password // empty' <"$PAYLOAD")"
-server="$(jq -r '.source.server // empty' <"$PAYLOAD")"
+[ "$debug" = "true" ] && set -x
 
 room_nick="$(jq -r '.source.room_nick // "concourse"' <"$PAYLOAD")"
 skip_ssl_verification="$(jq -r '.source.skip_ssl_verification // "false"' <"$PAYLOAD")"
 disable_ssl="$(jq -r '.source.disable_ssl // "false"' <"$PAYLOAD")"
 ca_cert=$(jq -r '.source.ca_cert // empty' <"$PAYLOAD")
 
-text="$(jq '.params.text // empty' <"$PAYLOAD")"
-text_file="$(jq -r '.params.text_file // empty' <"$PAYLOAD")"
+message="$(jq '.params.message // empty' <"$PAYLOAD")"
+message_file="$(jq -r '.params.message_file // empty' <"$PAYLOAD")"
+skip_empty="$(jq -r '.params.skip_empty // "false"' <"$PAYLOAD")"
 
 
 
@@ -36,17 +39,19 @@ if [ -z "$rooms" ] && [ -z "$recipients" ]; then
     exit 1
 fi
 
+: ${server:?Missing required option: \"server\"}
+[ "$debug" = "true" ] && set +x
 : ${username:?Missing required option: \"username\"}
 : ${password:?Missing required option: \"password\"}
-: ${server:?Missing required option: \"server\"}
+[ "$debug" = "true" ] && set -x
 
-if [ -z "$text" ] && [ -z "$text_file" ]; then
-    echo "Missing required parameter: \"text\" or \"text_file\""
+if [ -z "$message" ] && [ -z "$message_file" ]; then
+    echo "Missing required parameter: \"message\" or \"message_file\""
     exit 1
 fi
 
-if [ -n "$text" ] && [ -n "$text_file" ]; then
-    echo "Only one parameter must be specified: \"text\" or \"text_file\""
+if [ -n "$message" ] && [ -n "$message_file" ]; then
+    echo "Only one parameter must be specified: \"message\" or \"message_file\""
     exit 1
 fi
 
@@ -74,29 +79,37 @@ if [ "$debug" = "true" ]; then
     SENDXMPP_OPTS="$SENDXMPP_OPTS --verbose"
 fi
 
-if [ -n "$text_file" ] && [ ! -f "$text_file" ]; then
-    echo "$text_file file not found"
+if [ -n "$message_file" ] && [ ! -f "$message_file" ]; then
+    echo "$message_file file not found"
     exit 1
-elif [ -n "$text_file" ]; then
-    text="$(cat "$text_file")"
+elif [ -n "$message_file" ]; then
+    message="$(cat "$message_file")"
+fi
+
+if [ -z "$message" ]; then
+    if [ "$skip_empty" = "true" ]; then
+        exit 0
+    else
+        message="No message provided"
+    fi
 fi
 
 
-text="$(eval printf "%b" $text)"
-: ${text:-No notification provided}
-
-msg_file=$(mktemp /tmp/resource-msg.XXXXXX)
-echo "$text" >"$msg_file"
+message="$(eval printf "%b" $message)"
+message_file_tmp=$(mktemp /tmp/resource-msg.XXXXXX)
+echo "$message" >"$message_file_tmp"
 
 
 if [ -n "$recipients" ]; then
+    [ "$debug" = "true" ] && set +x
     sendxmpp $SENDXMPP_OPTS -j "$server" -u "$username" -p "$password" \
-        -m "$msg_file" $recipients
+        -m "$message_file_tmp" $recipients
 fi
 
 if [ -n "$rooms" ]; then
+    [ "$debug" = "true" ] && set +x
     sendxmpp $SENDXMPP_OPTS -j "$server" -u "$username" -p "$password" \
-        -m "$msg_file" --resource "$room_nick" --chatroom $rooms
+        -m "$message_file_tmp" --resource "$room_nick" --chatroom $rooms
 fi
 
 

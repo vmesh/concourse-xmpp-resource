@@ -41,9 +41,11 @@ Description.
 
 Only one of the following two parameters must be specified:
 
-* `text`: *Optional.*
+* `message`: *Optional.*
 
-* `text_file`: *Optional.*
+* `message_file`: *Optional.*
+
+* `skip_empty`: *Optional.*
 
 ## Example Configuration
 
@@ -74,7 +76,7 @@ Only one of the following two parameters must be specified:
 ```yaml
 - put: notification
   params:
-    text: |
+    message: |
       [$BUILD_PIPELINE_NAME] The pipeline has failed on job $BUILD_JOB_NAME #$BUILD_NAME.
       Check it out at: https://ci.example.org/builds/$BUILD_ID
 ```

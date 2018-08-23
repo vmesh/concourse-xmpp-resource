@@ -81,11 +81,13 @@ if [ "$debug" = "true" ]; then
     SENDXMPP_OPTS="$SENDXMPP_OPTS --verbose"
 fi
 
-if [ -n "$message_file" ] && [ ! -f "$message_file" ]; then
-    echo "$message_file file not found"
-    exit 1
-elif [ -n "$message_file" ]; then
-    message="$(cat "$message_file")"
+if [ -n "$message_file" ]; then
+    if [ -f "$message_file" ]; then
+        message="$(cat "$message_file")"
+    else
+        echo "$message_file file not found"
+        exit 1
+    fi
 fi
 
 if [ -z "$message" ]; then
@@ -97,7 +99,7 @@ if [ -z "$message" ]; then
 fi
 
 
-message="$(eval printf "%b" $message)"
+message="$(echo "$message" | envsubst)"
 message_file_tmp=$(mktemp /tmp/resource-msg.XXXXXX)
 echo "$message" >"$message_file_tmp"
 

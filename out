@@ -16,14 +16,14 @@ cat >"$PAYLOAD" <&0
 debug=$(jq -r '.source.debug // false' <"$PAYLOAD")
 [ "$debug" = "true" ] && set -x
 
-recipients="$(jq -r '.source.recipients | .[]? // empty' <"$PAYLOAD")"
-rooms="$(jq -r '.source.rooms | .[]? // empty' <"$PAYLOAD")"
-
 server="$(jq -r '.source.server // empty' <"$PAYLOAD")"
 [ "$debug" = "true" ] && set +x
 username="$(jq -r '.source.username // empty' <"$PAYLOAD")"
 password="$(jq -r '.source.password // empty' <"$PAYLOAD")"
 [ "$debug" = "true" ] && set -x
+
+recipients="$(jq -r '.source.recipients | .[]? // empty' <"$PAYLOAD")"
+rooms="$(jq -r '.source.rooms | .[]? // empty' <"$PAYLOAD")"
 
 room_nick="$(jq -r '.source.room_nick // "concourse"' <"$PAYLOAD")"
 skip_ssl_verification="$(jq -r '.source.skip_ssl_verification // "false"' <"$PAYLOAD")"
@@ -32,20 +32,18 @@ ca_cert=$(jq -r '.source.ca_cert // empty' <"$PAYLOAD")
 
 message="$(jq '.params.message // empty' <"$PAYLOAD")"
 message_file="$(jq -r '.params.message_file // empty' <"$PAYLOAD")"
-skip_empty="$(jq -r '.params.skip_empty // "false"' <"$PAYLOAD")"
 
 
+: "${server:?Missing required option: \"server\"}"
+[ "$debug" = "true" ] && set +x
+: "${username:?Missing required option: \"username\"}"
+: "${password:?Missing required option: \"password\"}"
+[ "$debug" = "true" ] && set -x
 
 if [ -z "$rooms" ] && [ -z "$recipients" ]; then
     echo "Missing required option: \"rooms\" or \"recipients\""
     exit 1
 fi
-
-: ${server:?Missing required option: \"server\"}
-[ "$debug" = "true" ] && set +x
-: ${username:?Missing required option: \"username\"}
-: ${password:?Missing required option: \"password\"}
-[ "$debug" = "true" ] && set -x
 
 if [ -z "$message" ] && [ -z "$message_file" ]; then
     echo "Missing required parameter: \"message\" or \"message_file\""
@@ -59,6 +57,7 @@ fi
 
 
 SENDXMPP_OPTS=""
+SENDXMPP_RECIPIENTS=""
 
 if [ -n "$ca_cert" ]; then
     cert_dir=$(mktemp -d /tmp/resource-cert.XXXXXX)
@@ -81,6 +80,14 @@ if [ "$debug" = "true" ]; then
     SENDXMPP_OPTS="$SENDXMPP_OPTS --verbose"
 fi
 
+if [ -n "$recipients" ]; then
+    SENDXMPP_RECIPIENTS="$recipients"
+fi
+
+if [ -n "$rooms" ]; then
+    SENDXMPP_RECIPIENTS="--resource $room_nick --chatroom $rooms"
+fi
+
 if [ -n "$message_file" ]; then
     if [ -f "$message_file" ]; then
         message="$(cat "$message_file")"
@@ -91,11 +98,9 @@ if [ -n "$message_file" ]; then
 fi
 
 if [ -z "$message" ]; then
-    if [ "$skip_empty" = "true" ]; then
-        exit 0
-    else
-        message="No message provided"
-    fi
+    echo "No message provided. Exiting."
+    jq -n "{ version: { timestamp: \"$(date +%s)\" } }" >&3
+    exit 0
 fi
 
 
@@ -104,17 +109,11 @@ message_file_tmp=$(mktemp /tmp/resource-msg.XXXXXX)
 echo "$message" >"$message_file_tmp"
 
 
-if [ -n "$recipients" ]; then
-    [ "$debug" = "true" ] && set +x
-    sendxmpp $SENDXMPP_OPTS -j "$server" -u "$username" -p "$password" \
-        -m "$message_file_tmp" $recipients
-fi
-
-if [ -n "$rooms" ]; then
-    [ "$debug" = "true" ] && set +x
-    sendxmpp $SENDXMPP_OPTS -j "$server" -u "$username" -p "$password" \
-        -m "$message_file_tmp" --resource "$room_nick" --chatroom $rooms
-fi
+[ "$debug" = "true" ] && set +x
+# shellcheck disable=SC2086
+sendxmpp $SENDXMPP_OPTS -j "$server" -u "$username" -p "$password" \
+    -m "$message_file_tmp" $SENDXMPP_RECIPIENTS
+[ "$debug" = "true" ] && set -x
 
 
 jq -n "{ version: { timestamp: \"$(date +%s)\" } }" >&3

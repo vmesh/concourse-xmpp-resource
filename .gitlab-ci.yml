@@ -1,17 +1,18 @@
-image: docker:latest
-
-services:
-  - docker:dind
-
-before_script:
-  - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
-  
 variables:
   REGEX_SEMVER: '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
 
+test:
+  stage: build
+  image: koalaman/shellcheck-alpine:latest
+  script: ./shellcheck.sh
+
 build:
   stage: build
+  image: docker:latest
+  services: 
+    - docker:dind
   script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
     - docker build --pull -t "$CI_REGISTRY_IMAGE":"$CI_COMMIT_SHA" -t "$CI_REGISTRY_IMAGE":latest .
     - docker push "$CI_REGISTRY_IMAGE":"$CI_COMMIT_SHA"
     - docker push "$CI_REGISTRY_IMAGE":latest

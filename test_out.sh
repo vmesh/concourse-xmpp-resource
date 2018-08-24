@@ -12,7 +12,7 @@ echo '
     "debug": true
   },
   "params": {
-    "text": "one recipient, $PWD"
+    "message": "one recipient, $PWD"
   }
 }
 ' | ./out
@@ -32,7 +32,7 @@ echo '
     "debug": "true"
   },
   "params": {
-    "text": "two rooms, $PWD"
+    "message": "two rooms, $PWD"
   }
 }
 ' | ./out
@@ -54,7 +54,7 @@ echo '
     "debug": "true"
   },
   "params": {
-    "text_file": "/etc/hostname"
+    "message_file": "/etc/hostname"
   }
 }
 ' | ./out

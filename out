@@ -106,6 +106,10 @@ fi
 
 message="$(echo "$message" | envsubst)"
 message_file_tmp=$(mktemp /tmp/resource-msg.XXXXXX)
+clean_tmp_files() {
+  rm -rf "$message_file_tmp"
+}
+trap clean_tmp_files EXIT
 echo "$message" >"$message_file_tmp"
 
 

@@ -30,7 +30,7 @@ skip_ssl_verification="$(jq -r '.source.skip_ssl_verification // "false"' <"$PAY
 disable_ssl="$(jq -r '.source.disable_ssl // "false"' <"$PAYLOAD")"
 ca_cert=$(jq -r '.source.ca_cert // empty' <"$PAYLOAD")
 
-message="$(jq '.params.message // empty' <"$PAYLOAD")"
+message="$(jq -r '.params.message // empty' <"$PAYLOAD")"
 message_file="$(jq -r '.params.message_file // empty' <"$PAYLOAD")"
 
 
